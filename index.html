@@ -11,9 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
     
-    <!-- MediaPipe Web SDK JS CDNs -->
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <!-- MediaPipe Hands Web SDK -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 
     <style>
@@ -147,7 +145,7 @@
             justify-content: center;
         }
 
-        video {
+        #webcamVideo {
             display: none;
         }
 
@@ -155,7 +153,6 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
-            transform: scaleX(-1); /* Mirror camera */
         }
 
         .controls-bar {
@@ -319,7 +316,7 @@
         <!-- LEFT: VIDEO PREVIEW -->
         <div class="video-card">
             <div class="canvas-container">
-                <video id="webcamVideo" playsinline></video>
+                <video id="webcamVideo" autoplay playsinline muted></video>
                 <canvas id="outputCanvas" width="1280" height="720"></canvas>
             </div>
             
@@ -419,18 +416,20 @@
         HandVision — AI-Powered Hand & Screen Visualization System | Open Source on <a href="https://github.com/VedantGadewar04/HandGesture-Python-Vision" target="_blank">GitHub</a>
     </footer>
 
-    <!-- IN-BROWSER MEDIAPIPE LOGIC -->
+    <!-- IN-BROWSER REANIMATED MEDIAPIPE LOGIC -->
     <script>
         const videoElement = document.getElementById('webcamVideo');
         const canvasElement = document.getElementById('outputCanvas');
         const canvasCtx = canvasElement.getContext('2d');
 
-        let camera = null;
+        let mediaStream = null;
+        let isRunning = false;
         let vmouseActive = false;
         let lastFrameTime = performance.now();
         let fps = 0;
+        let hands = null;
 
-        // Elements
+        // UI Elements
         const valHandDetected = document.getElementById('valHandDetected');
         const valHandedness = document.getElementById('valHandedness');
         const valConfidence = document.getElementById('valConfidence');
@@ -445,70 +444,149 @@
         const valVMouse = document.getElementById('valVMouse');
         const statusBadge = document.getElementById('statusBadge');
 
-        // Setup MediaPipe Hands
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-        });
+        // Draw initial dark message on canvas
+        function drawPlaceholder(msg = "Click '▶ Start Webcam' to begin hand tracking") {
+            canvasCtx.fillStyle = "#020617";
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.fillStyle = "#94A3B8";
+            canvasCtx.font = "20px Inter, sans-serif";
+            canvasCtx.textAlign = "center";
+            canvasCtx.fillText(msg, canvasElement.width / 2, canvasElement.height / 2);
+        }
 
-        hands.setOptions({
-            maxNumHands: 2,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.7,
-            minTrackingConfidence: 0.5
-        });
+        drawPlaceholder();
 
-        hands.onResults(onResults);
+        // 21 Hand Connections
+        const CONNECTIONS = [
+            [0,1],[1,2],[2,3],[3,4],
+            [0,5],[5,6],[6,7],[7,8],
+            [5,9],[9,10],[10,11],[11,12],
+            [9,13],[13,14],[14,15],[15,16],
+            [13,17],[17,18],[18,19],[19,20],[0,17]
+        ];
+
+        function initMediaPipe() {
+            if (hands) return;
+            hands = new Hands({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            });
+            hands.setOptions({
+                maxNumHands: 2,
+                modelComplexity: 1,
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.5
+            });
+            hands.onResults(onResults);
+        }
+
+        async function startCamera() {
+            if (isRunning) return;
+            initMediaPipe();
+
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
+                });
+                videoElement.srcObject = mediaStream;
+                await videoElement.play();
+                
+                isRunning = true;
+                statusBadge.textContent = "● CAMERA ONLINE";
+                statusBadge.style.color = "var(--accent-success)";
+                
+                requestAnimationFrame(processFrame);
+            } catch (err) {
+                console.error("Webcam Error:", err);
+                statusBadge.textContent = "● CAMERA DENIED";
+                statusBadge.style.color = "var(--accent-danger)";
+                drawPlaceholder("Camera Access Denied or in use. Please check permissions!");
+            }
+        }
+
+        function stopCamera() {
+            isRunning = false;
+            if (mediaStream) {
+                mediaStream.getTracks().forEach(track => track.stop());
+                mediaStream = null;
+            }
+            statusBadge.textContent = "● CAMERA OFFLINE";
+            statusBadge.style.color = "var(--accent-danger)";
+            drawPlaceholder("Webcam Stopped");
+
+            valHandDetected.textContent = "NO";
+            valHandDetected.style.color = "var(--accent-danger)";
+            valHandedness.textContent = "None";
+            valConfidence.textContent = "0%";
+            valGesture.textContent = "UNKNOWN";
+            valAction.textContent = "Pause / Neutral";
+        }
+
+        async function processFrame() {
+            if (!isRunning) return;
+
+            if (videoElement.readyState === 4) {
+                await hands.send({ image: videoElement });
+            }
+
+            requestAnimationFrame(processFrame);
+        }
 
         function onResults(results) {
-            // Calculate FPS
+            // FPS
             const now = performance.now();
             fps = (1000 / (now - lastFrameTime)).toFixed(1);
             lastFrameTime = now;
             valFPS.textContent = fps;
 
-            // Draw Canvas Frame
             canvasCtx.save();
             canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+            // Draw Mirrored Video Frame
+            canvasCtx.translate(canvasElement.width, 0);
+            canvasCtx.scale(-1, 1);
             canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.restore();
 
             if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const landmarks = results.multiHandLandmarks[0];
+                const lms = results.multiHandLandmarks[0];
                 const handedness = results.multiHandedness[0];
 
-                // Update Hand Status
                 valHandDetected.textContent = "YES";
                 valHandDetected.style.color = "var(--accent-success)";
                 valHandedness.textContent = handedness.label;
                 valConfidence.textContent = Math.round(handedness.score * 100) + "%";
 
-                // Draw Skeletal Lines
-                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#818CF8', lineWidth: 3});
-                drawLandmarks(canvasCtx, landmarks, {color: '#38BDF8', lineWidth: 1, radius: 5});
+                // Draw Custom Skeleton (Mirrored)
+                drawCustomSkeleton(lms);
 
-                // Evaluate Finger States
-                const fingerStates = evaluateFingers(landmarks);
-                valThumb.textContent = fingerStates.Thumb;
-                valIndex.textContent = fingerStates.Index;
-                valMiddle.textContent = fingerStates.Middle;
-                valRing.textContent = fingerStates.Ring;
-                valPinky.textContent = fingerStates.Pinky;
+                // Finger & Gesture Eval
+                const f = evaluateFingers(lms);
+                valThumb.textContent = f.Thumb;
+                valIndex.textContent = f.Index;
+                valMiddle.textContent = f.Middle;
+                valRing.textContent = f.Ring;
+                valPinky.textContent = f.Pinky;
 
-                // Evaluate Gestures
-                const gestureRes = evaluateGesture(landmarks, fingerStates);
-                valGesture.textContent = gestureRes.name;
-                valAction.textContent = gestureRes.action;
+                const g = evaluateGesture(lms, f);
+                valGesture.textContent = g.name;
+                valAction.textContent = g.action;
 
                 // Virtual Mouse Reticle
                 if (vmouseActive) {
-                    const idxPt = landmarks[8];
-                    const cx = (1 - idxPt.x) * canvasElement.width; // Mirrored
+                    const idxPt = lms[8];
+                    const cx = (1 - idxPt.x) * canvasElement.width;
                     const cy = idxPt.y * canvasElement.height;
 
                     canvasCtx.beginPath();
-                    canvasCtx.arc(cx, cy, 15, 0, 2 * Math.PI);
+                    canvasCtx.arc(cx, cy, 14, 0, 2 * Math.PI);
                     canvasCtx.strokeStyle = "#38BDF8";
                     canvasCtx.lineWidth = 3;
                     canvasCtx.stroke();
+
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(cx, cy, 4, 0, 2 * Math.PI);
+                    canvasCtx.fillStyle = "#38BDF8";
+                    canvasCtx.fill();
                 }
 
             } else {
@@ -519,13 +597,44 @@
                 valGesture.textContent = "UNKNOWN";
                 valAction.textContent = "Pause / Neutral";
             }
+        }
 
-            canvasCtx.restore();
+        function drawCustomSkeleton(landmarks) {
+            const w = canvasElement.width;
+            const h = canvasElement.height;
+
+            // Draw Lines
+            canvasCtx.strokeStyle = "#818CF8";
+            canvasCtx.lineWidth = 3;
+            CONNECTIONS.forEach(([i, j]) => {
+                const pt1 = landmarks[i];
+                const pt2 = landmarks[j];
+                const x1 = (1 - pt1.x) * w;
+                const y1 = pt1.y * h;
+                const x2 = (1 - pt2.x) * w;
+                const y2 = pt2.y * h;
+
+                canvasCtx.beginPath();
+                canvasCtx.moveTo(x1, y1);
+                canvasCtx.lineTo(x2, y2);
+                canvasCtx.stroke();
+            });
+
+            // Draw Joints
+            landmarks.forEach((lm, idx) => {
+                const cx = (1 - lm.x) * w;
+                const cy = lm.y * h;
+
+                canvasCtx.beginPath();
+                canvasCtx.arc(cx, cy, [4,8,12,16,20].includes(idx) ? 7 : 4, 0, 2 * Math.PI);
+                canvasCtx.fillStyle = [4,8,12,16,20].includes(idx) ? "#38BDF8" : "#E2E8F0";
+                canvasCtx.fill();
+            });
         }
 
         function evaluateFingers(lms) {
             return {
-                Thumb: (Math.hypot(lms[4].x - lms[17].x, lms[4].y - lms[17].y) > 0.25) ? "OPEN" : "CLOSED",
+                Thumb: (Math.hypot(lms[4].x - lms[17].x, lms[4].y - lms[17].y) > 0.22) ? "OPEN" : "CLOSED",
                 Index: (lms[8].y < lms[6].y) ? "OPEN" : "CLOSED",
                 Middle: (lms[12].y < lms[10].y) ? "OPEN" : "CLOSED",
                 Ring: (lms[16].y < lms[14].y) ? "OPEN" : "CLOSED",
@@ -550,29 +659,6 @@
             if (indexP && !middleP && !ringP && !pinkyP) return { name: "POINT", action: "Cursor Control" };
 
             return { name: "UNKNOWN", action: "None" };
-        }
-
-        function startCamera() {
-            if (camera) return;
-            camera = new Camera(videoElement, {
-                onFrame: async () => {
-                    await hands.send({image: videoElement});
-                },
-                width: 1280,
-                height: 720
-            });
-            camera.start();
-            statusBadge.textContent = "● CAMERA ONLINE";
-            statusBadge.style.color = "var(--accent-success)";
-        }
-
-        function stopCamera() {
-            if (camera) {
-                camera.stop();
-                camera = null;
-            }
-            statusBadge.textContent = "● CAMERA OFFLINE";
-            statusBadge.style.color = "var(--accent-danger)";
         }
 
         function toggleVirtualMouse() {
