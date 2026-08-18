@@ -160,6 +160,7 @@
             display: flex;
             gap: 0.75rem;
             flex-wrap: wrap;
+            align-items: center;
         }
 
         .btn {
@@ -186,6 +187,17 @@
 
         .btn-secondary { background-color: #334155; color: var(--text-primary); }
         .btn-secondary:hover { background-color: #475569; }
+
+        .camera-select {
+            padding: 0.6rem 0.8rem;
+            border-radius: 8px;
+            background-color: #0F172A;
+            color: var(--text-primary);
+            border: 1px solid var(--card-border);
+            font-size: 0.85rem;
+            font-weight: 600;
+            outline: none;
+        }
 
         /* RIGHT PANEL: STATUS CARDS */
         .status-stack {
@@ -324,6 +336,9 @@
                 <button id="btnStart" class="btn btn-success" onclick="startCamera()">▶ Start Webcam</button>
                 <button id="btnStop" class="btn btn-danger" onclick="stopCamera()">⏹ Stop Webcam</button>
                 <button id="btnToggleMouse" class="btn btn-secondary" onclick="toggleVirtualMouse()">🖱️ Virtual Mouse: OFF</button>
+                <select id="cameraSelect" class="camera-select" onchange="switchCamera()">
+                    <option value="">Default Camera</option>
+                </select>
             </div>
         </div>
 
@@ -421,6 +436,7 @@
         const videoElement = document.getElementById('webcamVideo');
         const canvasElement = document.getElementById('outputCanvas');
         const canvasCtx = canvasElement.getContext('2d');
+        const cameraSelect = document.getElementById('cameraSelect');
 
         let mediaStream = null;
         let isRunning = false;
@@ -456,6 +472,25 @@
 
         drawPlaceholder();
 
+        // Populate available video devices
+        async function loadCameraDevices() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(d => d.kind === 'videoinput');
+                cameraSelect.innerHTML = '<option value="">Default Camera</option>';
+                videoDevices.forEach((device, index) => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${index + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+            } catch (err) {
+                console.warn("Could not enumerate camera devices:", err);
+            }
+        }
+
+        loadCameraDevices();
+
         // 21 Hand Connections
         const CONNECTIONS = [
             [0,1],[1,2],[2,3],[3,4],
@@ -480,13 +515,18 @@
         }
 
         async function startCamera() {
-            if (isRunning) return;
+            if (isRunning) stopCamera();
             initMediaPipe();
 
+            const deviceId = cameraSelect.value;
+            const constraints = {
+                video: deviceId 
+                    ? { deviceId: { exact: deviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+                    : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
+            };
+
             try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({
-                    video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
-                });
+                mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
                 videoElement.srcObject = mediaStream;
                 await videoElement.play();
                 
@@ -494,6 +534,7 @@
                 statusBadge.textContent = "● CAMERA ONLINE";
                 statusBadge.style.color = "var(--accent-success)";
                 
+                await loadCameraDevices();
                 requestAnimationFrame(processFrame);
             } catch (err) {
                 console.error("Webcam Error:", err);
@@ -505,6 +546,12 @@
                 } else {
                     drawPlaceholder("Camera Access Denied or in use. Please check browser permissions!");
                 }
+            }
+        }
+
+        function switchCamera() {
+            if (isRunning) {
+                startCamera();
             }
         }
 
