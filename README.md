@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # HandVision v2.0 — AI-Powered Hand & Screen Visualization System
 
 ![HandVision Banner](https://img.shields.io/badge/HandVision-v2.0.0-38BDF8?style=for-the-badge)
@@ -104,3 +105,6 @@ Click the **⚙ Settings** button in the bottom control bar to tune parameters l
 - **Pinch Threshold**: Set pixel distance threshold for pinch click activation (20px – 70px).
 - **OS Action Cooldown**: Set safety delay between system actions like Close Tab or Open Explorer (0.5s – 3.0s).
 - **Scroll Sensitivity**: Adjust webpage vertical scrolling speed (0.2 – 3.0).
+=======
+# HandGesture-Python-Vision
+>>>>>>> 7263efbaf9db8f5d317b63b6e2990e392af77e14
