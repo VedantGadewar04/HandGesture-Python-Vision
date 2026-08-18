@@ -43,7 +43,7 @@ class SystemController:
             return False, f"Failed: {err}"
 
     def open_file_explorer(self) -> Tuple[bool, str]:
-        """Send Win + E or open specified directory in File Explorer."""
+        """Open Windows File Explorer directory."""
         if not self._can_execute():
             return False, "Cooldown Active"
 
@@ -52,8 +52,8 @@ class SystemController:
                 os.startfile(self.config.default_explorer_dir)
                 return True, f"Opened Folder: {os.path.basename(self.config.default_explorer_dir)}"
             else:
-                pyautogui.hotkey('win', 'e')
-                return True, "Opened File Explorer (Win+E)"
+                subprocess.Popen("explorer.exe")
+                return True, "Opened File Explorer (explorer.exe)"
         except Exception as err:
             return False, f"Failed: {err}"
 

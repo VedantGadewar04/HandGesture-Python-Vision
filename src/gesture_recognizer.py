@@ -59,7 +59,7 @@ def detect_finger_states(
     d_tip = math.hypot(thumb_tip[0] - pinky_mcp[0], thumb_tip[1] - pinky_mcp[1])
     d_ip = math.hypot(thumb_ip[0] - pinky_mcp[0], thumb_ip[1] - pinky_mcp[1])
 
-    if d_tip > d_ip * 1.12:
+    if d_tip > d_ip * 1.10:
         states["Thumb"] = "OPEN"
     else:
         states["Thumb"] = "CLOSED"
@@ -95,7 +95,7 @@ class GestureRecognizer:
         # Check THUMBS_DOWN (Thumb tip pointing downwards below MCP, other fingers closed)
         thumb_tip_norm = hand.landmarks_norm[4]
         thumb_mcp_norm = hand.landmarks_norm[2]
-        is_thumbs_down = (thumb_tip_norm[1] > thumb_mcp_norm[1] + 0.05) and (not index and not middle and not ring and not pinky)
+        is_thumbs_down = (thumb_tip_norm[1] > thumb_mcp_norm[1] + 0.04) and (not index and not middle and not ring and not pinky)
 
         # OK SIGN: Thumb and Index tips close together, while Middle, Ring, Pinky are open
         is_ok_sign = (pinch_dist < 28.0) and middle and ring and pinky
@@ -113,47 +113,42 @@ class GestureRecognizer:
             gesture = "PINCH"
             action = "Mouse Click / Drag"
 
-        # 3. OPEN PALM: All 5 fingers open
-        elif num_open >= 4 and index and middle and ring and pinky and thumb:
-            gesture = "OPEN_PALM"
-            action = "Pause / Neutral"
-
-        # 4. FOUR FINGERS: 4 fingers open (Index, Middle, Ring, Pinky), Thumb closed
-        elif index and middle and ring and pinky and not thumb:
+        # 3. FOUR FINGERS / OPEN PALM: Index, Middle, Ring, Pinky ALL OPEN -> Open File Explorer
+        elif index and middle and ring and pinky:
             gesture = "FOUR_FINGERS"
             action = "Open File Explorer"
 
-        # 5. THREE FINGERS: 3 fingers open (Index, Middle, Ring), Pinky & Thumb closed
-        elif index and middle and ring and not pinky and not thumb:
+        # 4. THREE FINGERS: 3 main fingers open (Index, Middle, Ring), Pinky CLOSED -> Close Current Tab
+        elif index and middle and ring and not pinky:
             gesture = "THREE_FINGERS"
             action = "Close Current Tab"
 
-        # 6. FIST: All fingers closed
+        # 5. FIST: All fingers closed
         elif num_open == 0 or (not index and not middle and not ring and not pinky and not thumb and not is_thumbs_down):
             gesture = "FIST"
             action = "Stop Interaction"
 
-        # 7. THUMBS DOWN: Thumb pointing downwards
+        # 6. THUMBS DOWN: Thumb pointing downwards
         elif is_thumbs_down:
             gesture = "THUMBS_DOWN"
             action = "Toggle Audio Mute"
 
-        # 8. THUMBS UP: Thumb open while Index, Middle, Ring, Pinky closed
+        # 7. THUMBS UP: Thumb open while Index, Middle, Ring, Pinky closed
         elif thumb and not index and not middle and not ring and not pinky:
             gesture = "THUMBS_UP"
             action = "Confirm / Activate"
 
-        # 9. TWO FINGERS SCROLL: Index & Middle open together, Ring & Pinky closed
-        elif index and middle and not ring and not pinky and index_middle_dist < 42.0:
+        # 8. TWO FINGERS SCROLL: Index & Middle open together, Ring & Pinky closed
+        elif index and middle and not ring and not pinky and index_middle_dist < 45.0:
             gesture = "TWO_FINGERS_SCROLL"
             action = "Scroll Page Up/Down"
 
-        # 10. VICTORY: Index + Middle open wide while Ring & Pinky closed
-        elif index and middle and not ring and not pinky and index_middle_dist >= 42.0:
+        # 9. VICTORY: Index + Middle open wide while Ring & Pinky closed
+        elif index and middle and not ring and not pinky and index_middle_dist >= 45.0:
             gesture = "VICTORY"
             action = "Take Screenshot"
 
-        # 11. POINT: Only Index open
+        # 10. POINT: Only Index open
         elif index and not middle and not ring and not pinky:
             gesture = "POINT"
             action = "Cursor Control"
