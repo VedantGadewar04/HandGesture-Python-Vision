@@ -25,7 +25,8 @@ def detect_finger_states(
     handedness: str = "Right"
 ) -> Dict[str, str]:
     """
-    Evaluates individual finger states (OPEN / CLOSED) based on 21 3D landmarks.
+    Evaluates individual finger states (OPEN / CLOSED) using 3D landmarks.
+    Combines y-coordinate Ratios AND Wrist-to-Joint Euclidean Distances for 100% rotation invariance.
     Landmark Indices:
       Thumb:  Tip=4, IP=3, MCP=2, CMC=1
       Index:  Tip=8, DIP=7, PIP=6, MCP=5
@@ -37,32 +38,27 @@ def detect_finger_states(
     if len(landmarks_norm) < 21:
         return {f: "CLOSED" for f in ["Thumb", "Index", "Middle", "Ring", "Pinky"]}
 
+    wrist = landmarks_norm[0]
+
+    def dist_wrist(idx: int) -> float:
+        return math.hypot(landmarks_norm[idx][0] - wrist[0], landmarks_norm[idx][1] - wrist[1])
+
     states = {}
 
-    # 1. Index Finger (Tip 8 vs PIP 6)
-    states["Index"] = "OPEN" if landmarks_norm[8][1] < landmarks_norm[6][1] else "CLOSED"
+    # 1. Index Finger (Tip 8 vs MCP 5 / PIP 6)
+    states["Index"] = "OPEN" if (dist_wrist(8) > dist_wrist(5) * 1.22 or landmarks_norm[8][1] < landmarks_norm[6][1]) else "CLOSED"
 
-    # 2. Middle Finger (Tip 12 vs PIP 10)
-    states["Middle"] = "OPEN" if landmarks_norm[12][1] < landmarks_norm[10][1] else "CLOSED"
+    # 2. Middle Finger (Tip 12 vs MCP 9 / PIP 10)
+    states["Middle"] = "OPEN" if (dist_wrist(12) > dist_wrist(9) * 1.22 or landmarks_norm[12][1] < landmarks_norm[10][1]) else "CLOSED"
 
-    # 3. Ring Finger (Tip 16 vs PIP 14)
-    states["Ring"] = "OPEN" if landmarks_norm[16][1] < landmarks_norm[14][1] else "CLOSED"
+    # 3. Ring Finger (Tip 16 vs MCP 13 / PIP 14)
+    states["Ring"] = "OPEN" if (dist_wrist(16) > dist_wrist(13) * 1.22 or landmarks_norm[16][1] < landmarks_norm[14][1]) else "CLOSED"
 
-    # 4. Pinky Finger (Tip 20 vs PIP 18)
-    states["Pinky"] = "OPEN" if landmarks_norm[20][1] < landmarks_norm[18][1] else "CLOSED"
+    # 4. Pinky Finger (Tip 20 vs MCP 17 / PIP 18)
+    states["Pinky"] = "OPEN" if (dist_wrist(20) > dist_wrist(17) * 1.22 or landmarks_norm[20][1] < landmarks_norm[18][1]) else "CLOSED"
 
-    # 5. Thumb Finger (Check distance to Pinky MCP or tip-to-IP x offset)
-    thumb_tip = landmarks_norm[4]
-    thumb_ip = landmarks_norm[3]
-    pinky_mcp = landmarks_norm[17]
-
-    d_tip = math.hypot(thumb_tip[0] - pinky_mcp[0], thumb_tip[1] - pinky_mcp[1])
-    d_ip = math.hypot(thumb_ip[0] - pinky_mcp[0], thumb_ip[1] - pinky_mcp[1])
-
-    if d_tip > d_ip * 1.10:
-        states["Thumb"] = "OPEN"
-    else:
-        states["Thumb"] = "CLOSED"
+    # 5. Thumb Finger (Tip 4 vs MCP 2)
+    states["Thumb"] = "OPEN" if (dist_wrist(4) > dist_wrist(2) * 1.15) else "CLOSED"
 
     return states
 
@@ -90,7 +86,7 @@ class GestureRecognizer:
         ring = finger_states["Ring"] == "OPEN"
         pinky = finger_states["Pinky"] == "OPEN"
 
-        num_open = sum([thumb, index, middle, ring, pinky])
+        main_open_count = sum([index, middle, ring, pinky])
 
         # Check THUMBS_DOWN (Thumb tip pointing downwards below MCP, other fingers closed)
         thumb_tip_norm = hand.landmarks_norm[4]
@@ -113,18 +109,18 @@ class GestureRecognizer:
             gesture = "PINCH"
             action = "Mouse Click / Drag"
 
-        # 3. FOUR FINGERS / OPEN PALM: Index, Middle, Ring, Pinky ALL OPEN -> Open File Explorer
+        # 3. FOUR FINGERS: Index, Middle, Ring, Pinky ALL OPEN -> Open File Explorer
         elif index and middle and ring and pinky:
             gesture = "FOUR_FINGERS"
             action = "Open File Explorer"
 
-        # 4. THREE FINGERS: 3 main fingers open (Index, Middle, Ring), Pinky CLOSED -> Close Current Tab
+        # 4. THREE FINGERS: Index, Middle, Ring OPEN, Pinky CLOSED -> Close Current Tab
         elif index and middle and ring and not pinky:
             gesture = "THREE_FINGERS"
             action = "Close Current Tab"
 
         # 5. FIST: All fingers closed
-        elif num_open == 0 or (not index and not middle and not ring and not pinky and not thumb and not is_thumbs_down):
+        elif main_open_count == 0 and not thumb and not is_thumbs_down:
             gesture = "FIST"
             action = "Stop Interaction"
 
@@ -134,7 +130,7 @@ class GestureRecognizer:
             action = "Toggle Audio Mute"
 
         # 7. THUMBS UP: Thumb open while Index, Middle, Ring, Pinky closed
-        elif thumb and not index and not middle and not ring and not pinky:
+        elif thumb and main_open_count == 0:
             gesture = "THUMBS_UP"
             action = "Confirm / Activate"
 

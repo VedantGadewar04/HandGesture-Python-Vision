@@ -24,36 +24,35 @@ def make_synthetic_hand(
     index_middle_dist_px=100.0,
     thumbs_down=False
 ):
-    norm_lms = [(0.5, 0.5, 0.0)] * 21
+    # Wrist at (0.5, 0.8)
+    norm_lms = [(0.5, 0.8, 0.0)] * 21
 
-    # Index (8 vs 6)
-    norm_lms[8] = (0.5, 0.2 if index_open else 0.6, 0.0)
-    norm_lms[6] = (0.5, 0.4, 0.0)
+    # MCPs at y = 0.5
+    norm_lms[5] = (0.4, 0.5, 0.0)
+    norm_lms[9] = (0.5, 0.5, 0.0)
+    norm_lms[13] = (0.6, 0.5, 0.0)
+    norm_lms[17] = (0.7, 0.5, 0.0)
+    norm_lms[2] = (0.3, 0.6, 0.0)
 
-    # Middle (12 vs 10)
-    norm_lms[12] = (0.55, 0.2 if middle_open else 0.6, 0.0)
-    norm_lms[10] = (0.55, 0.4, 0.0)
-
-    # Ring (16 vs 14)
-    norm_lms[16] = (0.6, 0.2 if ring_open else 0.6, 0.0)
+    # PIPs at y = 0.4
+    norm_lms[6] = (0.4, 0.4, 0.0)
+    norm_lms[10] = (0.5, 0.4, 0.0)
     norm_lms[14] = (0.6, 0.4, 0.0)
+    norm_lms[18] = (0.7, 0.4, 0.0)
+    norm_lms[3] = (0.25, 0.6, 0.0)
 
-    # Pinky (20 vs 18)
-    norm_lms[20] = (0.65, 0.2 if pinky_open else 0.6, 0.0)
-    norm_lms[18] = (0.65, 0.4, 0.0)
+    # Tips (Open -> y = 0.1, Closed -> y = 0.55)
+    norm_lms[8] = (0.4, 0.1 if index_open else 0.55, 0.0)
+    norm_lms[12] = (0.5, 0.1 if middle_open else 0.55, 0.0)
+    norm_lms[16] = (0.6, 0.1 if ring_open else 0.55, 0.0)
+    norm_lms[20] = (0.7, 0.1 if pinky_open else 0.55, 0.0)
 
-    # Thumb (4 vs 3 vs 17)
     if thumbs_down:
-        norm_lms[4] = (0.4, 0.8, 0.0)  # Below MCP
-        norm_lms[2] = (0.4, 0.5, 0.0)
+        norm_lms[4] = (0.3, 0.85, 0.0)  # Below MCP & Wrist
     elif thumb_open:
-        norm_lms[4] = (0.2, 0.4, 0.0)  # Open away
-        norm_lms[3] = (0.3, 0.4, 0.0)
-        norm_lms[17] = (0.65, 0.4, 0.0)
+        norm_lms[4] = (0.1, 0.4, 0.0)   # Stretched open
     else:
-        norm_lms[4] = (0.45, 0.45, 0.0)
-        norm_lms[3] = (0.45, 0.45, 0.0)
-        norm_lms[17] = (0.65, 0.4, 0.0)
+        norm_lms[4] = (0.35, 0.55, 0.0)
 
     px_lms = [(int(x * 1280), int(y * 720)) for x, y, z in norm_lms]
 
