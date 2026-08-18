@@ -1,0 +1,10 @@
+main.py
+src/
+assets/
+test_*.py
+test_backend.py
+test_gui.py
+test_v2_system.py
+requirements.txt
+run.bat
+screenshots/
