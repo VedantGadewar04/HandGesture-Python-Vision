@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HandVision — AI-Powered Hand & Screen Visualization System</title>
+    <meta name="description" content="Real-time AI Hand Landmark Tracking, Gesture Recognition, and Touchless Screen Controller in your browser.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- MediaPipe Web SDK JS CDNs -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        :root {
+            --bg-dark: #0F172A;
+            --card-bg: #1E293B;
+            --card-border: #334155;
+            --accent-primary: #38BDF8;
+            --accent-secondary: #818CF8;
+            --accent-success: #4ADE80;
+            --accent-warning: #FACC15;
+            --accent-danger: #F87171;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-dark);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* HEADER */
+        header {
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--card-border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .brand-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .brand-subtitle {
+            font-size: 0.875rem;
+            color: var(--text-secondary);
+            font-weight: 400;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .btn-github {
+            background-color: #24292F;
+            color: #FFF;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border: 1px solid var(--card-border);
+            transition: all 0.2s;
+        }
+
+        .btn-github:hover {
+            background-color: #334155;
+            border-color: var(--accent-primary);
+        }
+
+        .status-badge {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: var(--accent-danger);
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        /* MAIN CONTAINER */
+        .main-container {
+            max-width: 1400px;
+            width: 100%;
+            margin: 1.5rem auto;
+            padding: 0 1.5rem;
+            display: grid;
+            grid-template-columns: 1fr 360px;
+            gap: 1.5rem;
+            flex: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .main-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* LEFT PANEL: CAMERA VIEW */
+        .video-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background-color: #020617;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        video {
+            display: none;
+        }
+
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror camera */
+        }
+
+        .controls-bar {
+            margin-top: 1rem;
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 0.65rem 1.2rem;
+            border-radius: 8px;
+            font-weight: 700;
+            font-size: 0.875rem;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-success { background-color: var(--accent-success); color: #022C22; }
+        .btn-success:hover { background-color: #22C55E; }
+
+        .btn-danger { background-color: var(--accent-danger); color: #450A0A; }
+        .btn-danger:hover { background-color: #EF4444; }
+
+        .btn-accent { background-color: var(--accent-primary); color: #0C4A6E; }
+        .btn-accent:hover { background-color: #0284C7; }
+
+        .btn-secondary { background-color: #334155; color: var(--text-primary); }
+        .btn-secondary:hover { background-color: #475569; }
+
+        /* RIGHT PANEL: STATUS CARDS */
+        .status-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 1rem;
+        }
+
+        .card-title {
+            font-size: 0.875rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .card-divider {
+            height: 1px;
+            background-color: var(--card-border);
+            margin-bottom: 0.75rem;
+        }
+
+        .row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            padding: 0.25rem 0;
+        }
+
+        .row-label { color: var(--text-secondary); }
+        .row-val { font-weight: 700; color: var(--text-primary); }
+
+        /* GESTURE TABLE SHOWCASE */
+        .section-showcase {
+            max-width: 1400px;
+            width: 100%;
+            margin: 2rem auto;
+            padding: 0 1.5rem;
+        }
+
+        .showcase-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+        }
+
+        .gesture-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .gesture-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .gesture-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--accent-primary);
+        }
+
+        .gesture-name {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 0.4rem;
+        }
+
+        .gesture-action {
+            font-size: 0.875rem;
+            color: var(--accent-success);
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .gesture-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        footer {
+            margin-top: auto;
+            background-color: var(--card-bg);
+            border-top: 1px solid var(--card-border);
+            padding: 1.5rem;
+            text-align: center;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        footer a { color: var(--accent-primary); text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <!-- HEADER -->
+    <header>
+        <div>
+            <div class="brand-title">🖐️ HandVision Web</div>
+            <div class="brand-subtitle">AI-Powered Hand Tracking & Gesture Control System</div>
+        </div>
+        <div class="header-actions">
+            <div id="statusBadge" class="status-badge">● CAMERA OFFLINE</div>
+            <a href="https://github.com/VedantGadewar04/HandGesture-Python-Vision" target="_blank" class="btn-github">
+                <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                GitHub Repo
+            </a>
+        </div>
+    </header>
+
+    <!-- MAIN APP CONTAINER -->
+    <div class="main-container">
+        
+        <!-- LEFT: VIDEO PREVIEW -->
+        <div class="video-card">
+            <div class="canvas-container">
+                <video id="webcamVideo" playsinline></video>
+                <canvas id="outputCanvas" width="1280" height="720"></canvas>
+            </div>
+            
+            <div class="controls-bar">
+                <button id="btnStart" class="btn btn-success" onclick="startCamera()">▶ Start Webcam</button>
+                <button id="btnStop" class="btn btn-danger" onclick="stopCamera()">⏹ Stop Webcam</button>
+                <button id="btnToggleMouse" class="btn btn-secondary" onclick="toggleVirtualMouse()">🖱️ Virtual Mouse: OFF</button>
+            </div>
+        </div>
+
+        <!-- RIGHT: LIVE STATUS CARDS -->
+        <div class="status-stack">
+            
+            <!-- HAND STATUS -->
+            <div class="card">
+                <div class="card-title">Hand Status</div>
+                <div class="card-divider"></div>
+                <div class="row"><span class="row-label">Detected:</span><span id="valHandDetected" class="row-val" style="color: var(--accent-danger);">NO</span></div>
+                <div class="row"><span class="row-label">Handedness:</span><span id="valHandedness" class="row-val">None</span></div>
+                <div class="row"><span class="row-label">Confidence:</span><span id="valConfidence" class="row-val">0%</span></div>
+            </div>
+
+            <!-- FINGER STATUS -->
+            <div class="card">
+                <div class="card-title">Finger Status</div>
+                <div class="card-divider"></div>
+                <div class="row"><span class="row-label">Thumb:</span><span id="valThumb" class="row-val">CLOSED</span></div>
+                <div class="row"><span class="row-label">Index:</span><span id="valIndex" class="row-val">CLOSED</span></div>
+                <div class="row"><span class="row-label">Middle:</span><span id="valMiddle" class="row-val">CLOSED</span></div>
+                <div class="row"><span class="row-label">Ring:</span><span id="valRing" class="row-val">CLOSED</span></div>
+                <div class="row"><span class="row-label">Pinky:</span><span id="valPinky" class="row-val">CLOSED</span></div>
+            </div>
+
+            <!-- GESTURE & ACTION -->
+            <div class="card">
+                <div class="card-title">Gesture & Action</div>
+                <div class="card-divider"></div>
+                <div class="row"><span class="row-label">Gesture:</span><span id="valGesture" class="row-val" style="color: var(--accent-primary);">UNKNOWN</span></div>
+                <div class="row"><span class="row-label">Action:</span><span id="valAction" class="row-val" style="color: var(--accent-secondary);">Pause / Neutral</span></div>
+            </div>
+
+            <!-- SYSTEM METRICS -->
+            <div class="card">
+                <div class="card-title">System Metrics</div>
+                <div class="card-divider"></div>
+                <div class="row"><span class="row-label">FPS:</span><span id="valFPS" class="row-val">0.0</span></div>
+                <div class="row"><span class="row-label">Resolution:</span><span id="valRes" class="row-val">1280x720</span></div>
+                <div class="row"><span class="row-label">Virtual Mouse:</span><span id="valVMouse" class="row-val">DISABLED</span></div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- SHOWCASE SECTION -->
+    <div class="section-showcase">
+        <div class="showcase-title">🖐️ Supported Hand Gestures</div>
+        <div class="gesture-grid">
+            <div class="gesture-card">
+                <div class="gesture-name">POINT</div>
+                <div class="gesture-action">Cursor Control</div>
+                <div class="gesture-desc">Index finger extended. Moves the virtual mouse pointer smoothly across the screen.</div>
+            </div>
+
+            <div class="gesture-card">
+                <div class="gesture-name">PINCH</div>
+                <div class="gesture-action">Mouse Click / Select</div>
+                <div class="gesture-desc">Thumb & Index tips close together (&lt; 38px). Triggers a mouse click or hold-to-drag.</div>
+            </div>
+
+            <div class="gesture-card">
+                <div class="gesture-name">THREE_FINGERS</div>
+                <div class="gesture-action">Close Browser Tab (Ctrl+W)</div>
+                <div class="gesture-desc">Index, Middle, and Ring fingers open. Closes active browser tab touchless.</div>
+            </div>
+
+            <div class="gesture-card">
+                <div class="gesture-name">FOUR_FINGERS</div>
+                <div class="gesture-action">Open File Explorer (Win+E)</div>
+                <div class="gesture-desc">Four fingers extended. Instantly opens File Explorer or directory folder.</div>
+            </div>
+
+            <div class="gesture-card">
+                <div class="gesture-name">TWO_FINGERS_SCROLL</div>
+                <div class="gesture-action">Scroll Up / Down</div>
+                <div class="gesture-desc">Index & Middle extended together. Hand movement up and down scrolls the screen.</div>
+            </div>
+
+            <div class="gesture-card">
+                <div class="gesture-name">VICTORY</div>
+                <div class="gesture-action">Take Screenshot</div>
+                <div class="gesture-desc">Index & Middle open wide. Captures full-screen timestamped screenshot.</div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        HandVision — AI-Powered Hand & Screen Visualization System | Open Source on <a href="https://github.com/VedantGadewar04/HandGesture-Python-Vision" target="_blank">GitHub</a>
+    </footer>
+
+    <!-- IN-BROWSER MEDIAPIPE LOGIC -->
+    <script>
+        const videoElement = document.getElementById('webcamVideo');
+        const canvasElement = document.getElementById('outputCanvas');
+        const canvasCtx = canvasElement.getContext('2d');
+
+        let camera = null;
+        let vmouseActive = false;
+        let lastFrameTime = performance.now();
+        let fps = 0;
+
+        // Elements
+        const valHandDetected = document.getElementById('valHandDetected');
+        const valHandedness = document.getElementById('valHandedness');
+        const valConfidence = document.getElementById('valConfidence');
+        const valThumb = document.getElementById('valThumb');
+        const valIndex = document.getElementById('valIndex');
+        const valMiddle = document.getElementById('valMiddle');
+        const valRing = document.getElementById('valRing');
+        const valPinky = document.getElementById('valPinky');
+        const valGesture = document.getElementById('valGesture');
+        const valAction = document.getElementById('valAction');
+        const valFPS = document.getElementById('valFPS');
+        const valVMouse = document.getElementById('valVMouse');
+        const statusBadge = document.getElementById('statusBadge');
+
+        // Setup MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+            maxNumHands: 2,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onResults);
+
+        function onResults(results) {
+            // Calculate FPS
+            const now = performance.now();
+            fps = (1000 / (now - lastFrameTime)).toFixed(1);
+            lastFrameTime = now;
+            valFPS.textContent = fps;
+
+            // Draw Canvas Frame
+            canvasCtx.save();
+            canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+            canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const handedness = results.multiHandedness[0];
+
+                // Update Hand Status
+                valHandDetected.textContent = "YES";
+                valHandDetected.style.color = "var(--accent-success)";
+                valHandedness.textContent = handedness.label;
+                valConfidence.textContent = Math.round(handedness.score * 100) + "%";
+
+                // Draw Skeletal Lines
+                drawConnectors(canvasCtx, landmarks, HAND_CONNECTIONS, {color: '#818CF8', lineWidth: 3});
+                drawLandmarks(canvasCtx, landmarks, {color: '#38BDF8', lineWidth: 1, radius: 5});
+
+                // Evaluate Finger States
+                const fingerStates = evaluateFingers(landmarks);
+                valThumb.textContent = fingerStates.Thumb;
+                valIndex.textContent = fingerStates.Index;
+                valMiddle.textContent = fingerStates.Middle;
+                valRing.textContent = fingerStates.Ring;
+                valPinky.textContent = fingerStates.Pinky;
+
+                // Evaluate Gestures
+                const gestureRes = evaluateGesture(landmarks, fingerStates);
+                valGesture.textContent = gestureRes.name;
+                valAction.textContent = gestureRes.action;
+
+                // Virtual Mouse Reticle
+                if (vmouseActive) {
+                    const idxPt = landmarks[8];
+                    const cx = (1 - idxPt.x) * canvasElement.width; // Mirrored
+                    const cy = idxPt.y * canvasElement.height;
+
+                    canvasCtx.beginPath();
+                    canvasCtx.arc(cx, cy, 15, 0, 2 * Math.PI);
+                    canvasCtx.strokeStyle = "#38BDF8";
+                    canvasCtx.lineWidth = 3;
+                    canvasCtx.stroke();
+                }
+
+            } else {
+                valHandDetected.textContent = "NO";
+                valHandDetected.style.color = "var(--accent-danger)";
+                valHandedness.textContent = "None";
+                valConfidence.textContent = "0%";
+                valGesture.textContent = "UNKNOWN";
+                valAction.textContent = "Pause / Neutral";
+            }
+
+            canvasCtx.restore();
+        }
+
+        function evaluateFingers(lms) {
+            return {
+                Thumb: (Math.hypot(lms[4].x - lms[17].x, lms[4].y - lms[17].y) > 0.25) ? "OPEN" : "CLOSED",
+                Index: (lms[8].y < lms[6].y) ? "OPEN" : "CLOSED",
+                Middle: (lms[12].y < lms[10].y) ? "OPEN" : "CLOSED",
+                Ring: (lms[16].y < lms[14].y) ? "OPEN" : "CLOSED",
+                Pinky: (lms[20].y < lms[18].y) ? "OPEN" : "CLOSED",
+            };
+        }
+
+        function evaluateGesture(lms, f) {
+            const indexP = f.Index === "OPEN";
+            const middleP = f.Middle === "OPEN";
+            const ringP = f.Ring === "OPEN";
+            const pinkyP = f.Pinky === "OPEN";
+            const thumbP = f.Thumb === "OPEN";
+
+            const pinchDist = Math.hypot((lms[4].x - lms[8].x) * 1280, (lms[4].y - lms[8].y) * 720);
+
+            if (pinchDist < 38) return { name: "PINCH", action: "Mouse Click / Drag" };
+            if (indexP && middleP && ringP && pinkyP && thumbP) return { name: "OPEN_PALM", action: "Pause / Neutral" };
+            if (indexP && middleP && ringP && pinkyP && !thumbP) return { name: "FOUR_FINGERS", action: "Open File Explorer" };
+            if (indexP && middleP && ringP && !pinkyP && !thumbP) return { name: "THREE_FINGERS", action: "Close Current Tab" };
+            if (indexP && middleP && !ringP && !pinkyP) return { name: "VICTORY", action: "Take Screenshot" };
+            if (indexP && !middleP && !ringP && !pinkyP) return { name: "POINT", action: "Cursor Control" };
+
+            return { name: "UNKNOWN", action: "None" };
+        }
+
+        function startCamera() {
+            if (camera) return;
+            camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await hands.send({image: videoElement});
+                },
+                width: 1280,
+                height: 720
+            });
+            camera.start();
+            statusBadge.textContent = "● CAMERA ONLINE";
+            statusBadge.style.color = "var(--accent-success)";
+        }
+
+        function stopCamera() {
+            if (camera) {
+                camera.stop();
+                camera = null;
+            }
+            statusBadge.textContent = "● CAMERA OFFLINE";
+            statusBadge.style.color = "var(--accent-danger)";
+        }
+
+        function toggleVirtualMouse() {
+            vmouseActive = !vmouseActive;
+            const btn = document.getElementById('btnToggleMouse');
+            if (vmouseActive) {
+                btn.textContent = "🖱️ Virtual Mouse: ON";
+                btn.style.backgroundColor = "var(--accent-primary)";
+                valVMouse.textContent = "ENABLED";
+                valVMouse.style.color = "var(--accent-success)";
+            } else {
+                btn.textContent = "🖱️ Virtual Mouse: OFF";
+                btn.style.backgroundColor = "#334155";
+                valVMouse.textContent = "DISABLED";
+                valVMouse.style.color = "var(--text-secondary)";
+            }
+        }
+    </script>
+</body>
+</html>
