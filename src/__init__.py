@@ -1,0 +1,3 @@
+"""
+HandVision core package.
+"""

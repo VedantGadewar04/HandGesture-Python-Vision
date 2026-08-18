@@ -1,0 +1,22 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+
+# Screenshots saved during testing (keep directory with .gitkeep)
+screenshots/*
+!screenshots/.gitkeep
+
+# Models
+assets/models/*.task
+
+# IDE & System
+.vscode/
+.idea/
+*.swp
+.DS_Store
