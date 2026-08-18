@@ -497,9 +497,14 @@
                 requestAnimationFrame(processFrame);
             } catch (err) {
                 console.error("Webcam Error:", err);
-                statusBadge.textContent = "● CAMERA DENIED";
+                statusBadge.textContent = "● CAMERA BUSY / DENIED";
                 statusBadge.style.color = "var(--accent-danger)";
-                drawPlaceholder("Camera Access Denied or in use. Please check permissions!");
+                
+                if (err.name === "NotReadableError" || err.message.includes("Could not start video source")) {
+                    drawPlaceholder("Camera in use by Python App or another program! Stop Python camera, then click Start Webcam.");
+                } else {
+                    drawPlaceholder("Camera Access Denied or in use. Please check browser permissions!");
+                }
             }
         }
 
